@@ -3,15 +3,19 @@ import requests
 import re
 import os
 import pdb
+from threading import Thread 
 class fetchBook:
     def __init__(self):
         self.header = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'}
+        """
         self.urls = [
                      'http://txt.rain8.com/txtgw/',
                      'http://txt.rain8.com/txtzj/',
                      'http://txt.rain8.com/txtzx/',
                      'http://txt.rain8.com/txtsh/'
                      ]#添加更多url来
+        """
+        self.urls = ['http://txt.rain8.com/txtsc/']
         self.rePageIndex = re.compile('list_\d+_\d+.html')
         self.rePageCount = re.compile('<strong>\d+</strong>')
         self.reDownloadGet1 = re.compile('href=.http://txt.rain8.com/plus/xiazai_yfx.php?[^>]+')
@@ -20,8 +24,7 @@ class fetchBook:
         self.reBookGetNew = re.compile('')
         self.reBookGetOld = re.compile('')
         self.cnt = 0
-    def download(self,downloadUrl,folder,bookname,author):
-        print u'现在下载:'+bookname
+    def download(self,downloadUrl,folder,bookname,author,threadid):
         self.cnt+=1
         self.req = requests.get(downloadUrl,headers = self.header)
         folder = folder.decode('gb2312')
@@ -36,6 +39,7 @@ class fetchBook:
         f = open(posi+'/'+bookname+'.rar','wb')
         f.write(self.req.content)
         f.close()
+        print u'进程(%s)现在下载:'%(str(threadid))+bookname
     def viewAllPage(self,url):
         """
         函数功能为把该栏目下所有页面全过一遍。
@@ -55,18 +59,28 @@ class fetchBook:
             bookNew = self.reBookGetNew.findall(req.text)
             #print x1[0][:-31]
             bookOld = self.reBookGetOld.findall(req.text)
+            threadpool = []
+            threadid = 0
             for books in bookNew:
                 try:
+                    threadid +=1
                     downloadUrl,bookName,author = self.fetchDownloadUrl(books[:-31])
-                    self.download(downloadUrl,foldname,bookName,author)
+                    t = Thread(target = self.download,args=(downloadUrl,foldname,bookName,author,threadid))
+                    threadpool.append(t)
                 except:
                     print bookName,'下载失败'
             for books in bookOld:
                 try:
+                    threadid +=1
                     downloadUrl,bookName,author = self.fetchDownloadUrl(books[:-31])
-                    self.download(downloadUrl,foldname,bookName,author)
+                    t = Thread(target = self.download,args=(downloadUrl,foldname,bookName,author,threadid))
+                    threadpool.append(t)
                 except:
                     print bookName,'下载失败'
+            for t in threadpool:
+                t.start()
+            for t in threadpool:
+                t.join()
         print '下载完成，共下载'+str(self.cnt)+'本'
     def fetchDownloadUrl(self,bookurl):
         req = requests.get(bookurl,headers = self.header)
